@@ -36,6 +36,7 @@
       "name": "inih",
       "buildsystem": "meson",
       "config-opts": [
+        "--libdir=lib",
         "-Ddefault_library=shared",
         "-Ddistro_install=true",
         "-Dwith_INIReader=true",
@@ -69,6 +70,7 @@
       "buildsystem": "meson",
       "builddir": true,
       "config-opts": [
+        "--libdir=lib",
         "-Dintrospection=false",
         "-Dvapi=false",
         "-Dtools=false",
@@ -86,6 +88,7 @@
       "name": "gnome-desktop",
       "buildsystem": "meson",
       "config-opts": [
+        "--libdir=lib",
         "-Ddebug_tools=false",
         "-Ddesktop_docs=false",
         "-Dlegacy_library=false",
@@ -110,6 +113,7 @@
       "buildsystem": "meson",
       "builddir": true,
       "config-opts": [
+        "--libdir=lib",
         "-Dintrospection=disabled"
       ],
       "sources": [
@@ -125,6 +129,7 @@
       "buildsystem": "meson",
       "builddir": true,
       "config-opts": [
+        "--libdir=lib",
         "-Dintrospection=false",
         "-Dvapigen=false"
       ],
@@ -144,6 +149,7 @@
         "/etc"
       ],
       "config-opts": [
+        "--libdir=lib",
         "-Dfunctional_tests=false",
         "-Dsandbox_tests=false",
         "-Ddomain_prefix=io.github.paullinux_gn.Vinder",
@@ -174,6 +180,7 @@
       "builddir": true,
       "name": "nautilus",
       "config-opts": [
+        "--libdir=lib",
         "-Dprofile=Vinder",
         "-Dtests=none",
         "-Dselinux=disabled"

@@ -115,15 +115,25 @@ jobs:
           flatpak-builder --user --disable-rofiles-fuse --force-clean \
             --install-deps-from=flathub --state-dir=.flatpak-builder \
             --repo=repo build-dir-full "$MANIFEST"
-          flatpak build-bundle repo "Vinder-${ver}-x86_64.flatpak" "$APP_ID"
+          flatpak build-bundle repo "Vinder-${ver}-x86_64.flatpak" "$APP_ID" stable
           sha256sum "Vinder-${ver}-x86_64.flatpak" > SHA256SUMS
 
-      - name: Smoke-test the installed bundle
+      - name: Smoke-test the installed bundle (no display needed)
         run: |
           ver="${{ steps.meta.outputs.version }}"
           flatpak install --user -y "./Vinder-${ver}-x86_64.flatpak"
           flatpak info --user "$APP_ID"
-          flatpak run --user --command=sh "$APP_ID" -c 'nautilus --version'
+          # The runner has no display, so starting the app would fail. Instead,
+          # check that the binary exists and that every shared library it needs
+          # can be found inside the sandbox (this catches /app/lib vs /app/lib64 problems).
+          flatpak run --user --command=sh "$APP_ID" -c '
+            test -x /app/bin/nautilus
+            if LD_TRACE_LOADED_OBJECTS=1 /app/bin/nautilus 2>&1 | grep "not found"; then
+              echo "Missing shared libraries (see above)"; exit 1
+            fi
+            ls /app/lib/nautilus/extensions-4
+            echo "Smoke test passed"
+          '
 
       - name: Upload bundle
         uses: actions/upload-artifact@v4
