@@ -194,56 +194,72 @@ template $NautilusWindow: Adw.ApplicationWindow {
             };
           };
 
-          content: Adw.ToolbarView files_toolbar_view {
-            styles ["vinder-content"]
+          content: Box {
+            styles ["vinder-content-surround"]
 
-            [top]
-            $NautilusToolbar toolbar {
-              show-view-controls: true;
-              show-history-controls: true;
-              sidebar-button-active: bind split_view.show-sidebar bidirectional;
-              window-slot: bind template.active-slot;
-            }
+            Adw.Bin {
+              hexpand: true;
+              vexpand: true;
+              overflow: hidden;
+              margin-top: 8;
+              margin-bottom: 8;
+              margin-start: 8;
+              margin-end: 8;
 
-            [top]
-            Adw.TabBar tab_bar {
-              view: tab_view;
-            }
+              styles ["vinder-content-card"]
 
-            content: Adw.TabView tab_view {
-              menu-model: tab_menu_model;
-              close-page => $tab_view_close_page_cb();
-              setup-menu => $tab_view_setup_menu_cb();
-              notify::selected-page => $tab_view_notify_selected_page_cb();
-              create-window => $tab_view_create_window_cb();
-              page-attached => $tab_view_page_attached_cb();
-              page-detached => $tab_view_page_detached_cb();
-            };
+              child: Adw.ToolbarView files_toolbar_view {
+                styles ["vinder-content"]
 
-            [bottom]
-            $NautilusNetworkAddressBar network_address_bar {
-              visible: false;
-            }
+                [top]
+                $NautilusToolbar toolbar {
+                  show-view-controls: true;
+                  show-history-controls: true;
+                  sidebar-button-active: bind split_view.show-sidebar bidirectional;
+                  window-slot: bind template.active-slot;
+                }
 
-            [bottom]
-            ActionBar action_bar {
-              revealed: false;
+                [top]
+                Adw.TabBar tab_bar {
+                  view: tab_view;
+                }
 
-              [start]
-              $NautilusHistoryControls {
-                window-slot: bind template.active-slot;
-              }
+                content: Adw.TabView tab_view {
+                  menu-model: tab_menu_model;
+                  close-page => $tab_view_close_page_cb();
+                  setup-menu => $tab_view_setup_menu_cb();
+                  notify::selected-page => $tab_view_notify_selected_page_cb();
+                  create-window => $tab_view_create_window_cb();
+                  page-attached => $tab_view_page_attached_cb();
+                  page-detached => $tab_view_page_detached_cb();
+                };
 
-              [end]
-              $NautilusViewControls {
-                window-slot: bind template.active-slot;
-              }
+                [bottom]
+                $NautilusNetworkAddressBar network_address_bar {
+                  visible: false;
+                }
 
-              [end]
-              Adw.TabButton {
-                view: tab_view;
-                action-name: "win.open-tab-overview";
-              }
+                [bottom]
+                ActionBar action_bar {
+                  revealed: false;
+
+                  [start]
+                  $NautilusHistoryControls {
+                    window-slot: bind template.active-slot;
+                  }
+
+                  [end]
+                  $NautilusViewControls {
+                    window-slot: bind template.active-slot;
+                  }
+
+                  [end]
+                  Adw.TabButton {
+                    view: tab_view;
+                    action-name: "win.open-tab-overview";
+                  }
+                }
+              };
             }
           };
         };

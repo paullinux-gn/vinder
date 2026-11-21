@@ -17,3 +17,6 @@ build/
 # Ignore captures
 /*.syscap
 /heaptrack.nautilus.*
+*.flatpak
+/Vinder-*.png
+/vinder-*.png

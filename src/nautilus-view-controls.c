@@ -5,8 +5,12 @@
  */
 
 #include "nautilus-view-controls.h"
+#include "nautilus-metadata.h"
 
 #include "nautilus-file.h"
+#include "nautilus-files-view.h"
+#include "nautilus-view-info.h"
+#include "nautilus-global-preferences.h"
 #include "nautilus-file-utilities.h"
 #include "nautilus-scheme.h"
 #include "nautilus-ui-utilities.h"
@@ -20,6 +24,8 @@ struct _NautilusViewControls
     AdwBin parent_instance;
 
     GtkWidget *view_split_button;
+    AdwToggleGroup *view_toggle_group;
+    gboolean updating_buttons;
     GMenuModel *view_menu;
     GMenuModel *sort_section;
 
@@ -37,6 +43,83 @@ enum
 };
 
 static GParamSpec *properties[N_PROPS];
+
+static void
+update_view_buttons (NautilusViewControls *self)
+{
+    NautilusFilesView *view = self->window_slot != NULL
+                             ? nautilus_window_slot_get_current_view (self->window_slot) : NULL;
+    guint view_id = view != NULL ? nautilus_files_view_get_view_id (view) : NAUTILUS_VIEW_INVALID_ID;
+    gboolean tree = g_settings_get_boolean (nautilus_list_view_preferences,
+                                            NAUTILUS_PREFERENCES_LIST_VIEW_USE_TREE);
+    GFile *location = self->window_slot != NULL
+                      ? nautilus_window_slot_get_location (self->window_slot) : NULL;
+    if (location != NULL)
+    {
+        g_autoptr (NautilusFile) folder = nautilus_file_get (location);
+        const char *mode = vinder_folder_get_view_mode (folder);
+        if (mode != NULL)
+        {
+            tree = g_str_equal (mode, "tree");
+        }
+    }
+    gboolean available = view_id == NAUTILUS_VIEW_GRID_ID || view_id == NAUTILUS_VIEW_LIST_ID;
+
+    self->updating_buttons = TRUE;
+    gtk_widget_set_sensitive (GTK_WIDGET (self->view_toggle_group), available);
+    adw_toggle_group_set_active_name (self->view_toggle_group,
+                                      view_id == NAUTILUS_VIEW_GRID_ID ? "grid" :
+                                      tree ? "tree" : "list");
+    self->updating_buttons = FALSE;
+}
+
+static void
+on_tree_preference_changed (GSettings            *settings,
+                            const char           *key,
+                            NautilusViewControls *self)
+{
+    update_view_buttons (self);
+}
+
+static void
+on_view_button_toggled (AdwToggleGroup       *group,
+                        GParamSpec           *pspec,
+                        NautilusViewControls *self)
+{
+    if (self->updating_buttons || self->window_slot == NULL)
+    {
+        return;
+    }
+
+    const char *mode = adw_toggle_group_get_active_name (group);
+    if (mode == NULL)
+    {
+        return;
+    }
+    gboolean grid = g_str_equal (mode, "grid");
+    GFile *location = nautilus_window_slot_get_location (self->window_slot);
+    if (location == NULL)
+    {
+        return;
+    }
+
+    g_autoptr (NautilusFile) folder = nautilus_file_get (location);
+    const char *previous_mode = vinder_folder_get_view_mode (folder);
+    gboolean changed = g_strcmp0 (mode, previous_mode) != 0;
+    NautilusFilesView *view = nautilus_window_slot_get_current_view (self->window_slot);
+    gboolean reload_list = !grid && changed && view != NULL &&
+                           nautilus_files_view_get_view_id (view) == NAUTILUS_VIEW_LIST_ID;
+
+    vinder_folder_set_view_mode (folder, mode);
+
+    gtk_widget_activate_action (GTK_WIDGET (self), "slot.files-view-mode", "u",
+                                 grid ? NAUTILUS_VIEW_GRID_ID : NAUTILUS_VIEW_LIST_ID);
+    if (reload_list)
+    {
+        gtk_widget_activate_action (GTK_WIDGET (self), "slot.reload", NULL);
+    }
+    update_view_buttons (self);
+}
 
 static void
 update_sort_section (NautilusViewControls *self,
@@ -74,6 +157,7 @@ adjust_to_location (NautilusViewControls *self,
                         !nautilus_is_root_for_scheme (location, SCHEME_NETWORK_VIEW);
 
     gtk_widget_set_sensitive (self->view_split_button, has_menu);
+    update_view_buttons (self);
 
     if (!has_menu)
     {
@@ -90,19 +174,7 @@ on_tooltip_changed (NautilusViewControls *self,
                     GParamSpec           *param,
                     NautilusWindowSlot   *slot)
 {
-    const gchar *description;
-    const gchar *tooltip = nautilus_window_slot_get_tooltip_with_description (slot, &description);
-
-    if (tooltip == NULL)
-    {
-        return;
-    }
-    gtk_accessible_update_property (GTK_ACCESSIBLE (self->view_split_button),
-                                    GTK_ACCESSIBLE_PROPERTY_LABEL,
-                                    tooltip,
-                                    GTK_ACCESSIBLE_PROPERTY_DESCRIPTION,
-                                    description,
-                                    -1);
+    update_view_buttons (self);
 }
 
 
@@ -148,6 +220,7 @@ nautilus_view_controls_set_window_slot (NautilusViewControls *self,
                                   G_CALLBACK (on_tooltip_changed), self);
     }
 
+    update_view_buttons (self);
     g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_WINDOW_SLOT]);
 }
 
@@ -242,12 +315,17 @@ nautilus_view_controls_class_init (NautilusViewControlsClass *klass)
                                                  "/org/gnome/nautilus/ui/nautilus-view-controls.ui");
     gtk_widget_class_bind_template_child (widget_class, NautilusViewControls, view_menu);
     gtk_widget_class_bind_template_child (widget_class, NautilusViewControls, view_split_button);
+    gtk_widget_class_bind_template_child (widget_class, NautilusViewControls, view_toggle_group);
+    gtk_widget_class_bind_template_callback (widget_class, on_view_button_toggled);
 }
 
 static void
 nautilus_view_controls_init (NautilusViewControls *self)
 {
     gtk_widget_init_template (GTK_WIDGET (self));
+    g_signal_connect_object (nautilus_list_view_preferences,
+                             "changed::" NAUTILUS_PREFERENCES_LIST_VIEW_USE_TREE,
+                             G_CALLBACK (on_tree_preference_changed), self, 0);
 
     g_autoptr (GtkBuilder) builder =
         gtk_builder_new_from_resource ("/org/gnome/nautilus/menu/nautilus-toolbar-view-menu.ui");

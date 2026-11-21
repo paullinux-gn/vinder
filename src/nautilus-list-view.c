@@ -13,6 +13,7 @@
 
 #include "nautilus-list-base-private.h"
 #include "nautilus-list-view.h"
+#include "nautilus-metadata.h"
 
 #include "nautilus-column-chooser.h"
 #include "nautilus-column-utilities.h"
@@ -600,6 +601,12 @@ nautilus_list_view_setup_directory (NautilusListBase  *list_base,
     self->path_attribute_q = 0;
     g_clear_object (&self->file_path_base_location);
     file = nautilus_list_base_get_directory_as_file (list_base);
+    const char *saved_mode = vinder_folder_get_view_mode (file);
+    if (saved_mode != NULL)
+    {
+        self->expand_as_a_tree = g_str_equal (saved_mode, "tree");
+    }
+
     if (nautilus_file_is_in_trash (file))
     {
         self->path_attribute_q = g_quark_from_string ("trash_orig_path");

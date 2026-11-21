@@ -1728,19 +1728,14 @@ nautilus_window_show_about_dialog (NautilusWindow *window)
     g_autofree gchar *module_names = nautilus_module_get_installed_module_names ();
     g_autofree gchar *debug_info = NULL;
 
-    const gchar *designers[] =
+    const gchar *vinder_developers[] =
     {
-        _("The GNOME Project"),
+        "Paul Beyens (paullinux-gn)",
         NULL
     };
-    const gchar *developers[] =
+    const gchar *upstream_authors[] =
     {
-        _("The GNOME Project"),
-        NULL
-    };
-    const gchar *documenters[] =
-    {
-        _("The GNOME Project"),
+        "The GNOME Project https://gitlab.gnome.org/GNOME/nautilus",
         "Sun Microsystems",
         NULL
     };
@@ -1761,21 +1756,28 @@ nautilus_window_show_about_dialog (NautilusWindow *window)
 
     adw_about_dialog_set_application_name (ADW_ABOUT_DIALOG (dialog), "Vinder");
     adw_about_dialog_set_application_icon (ADW_ABOUT_DIALOG (dialog), APPLICATION_ID);
-    adw_about_dialog_set_developer_name (ADW_ABOUT_DIALOG (dialog), "Vinder Contributors");
+    adw_about_dialog_set_developer_name (ADW_ABOUT_DIALOG (dialog), "Paul Beyens");
     adw_about_dialog_set_comments (ADW_ABOUT_DIALOG (dialog),
                                    _("A GNOME file manager based on Nautilus."));
     adw_about_dialog_set_website (ADW_ABOUT_DIALOG (dialog), "https://github.com/paullinux-gn/vinder");
     adw_about_dialog_set_issue_url (ADW_ABOUT_DIALOG (dialog), "https://github.com/paullinux-gn/vinder/issues");
     adw_about_dialog_set_version (ADW_ABOUT_DIALOG (dialog), VERSION);
     adw_about_dialog_set_debug_info (ADW_ABOUT_DIALOG (dialog), debug_info);
-    adw_about_dialog_set_copyright (ADW_ABOUT_DIALOG (dialog), "© 1999 The Files Authors");
-    adw_about_dialog_set_developers (ADW_ABOUT_DIALOG (dialog), developers);
-    adw_about_dialog_set_designers (ADW_ABOUT_DIALOG (dialog), designers);
-    adw_about_dialog_set_documenters (ADW_ABOUT_DIALOG (dialog), documenters);
+    adw_about_dialog_set_copyright (ADW_ABOUT_DIALOG (dialog),
+                                     "© 2026 Paul Beyens (Vinder modifications)\n"
+                                     "© 1999 The Files Authors (upstream Nautilus)");
+    adw_about_dialog_set_developers (ADW_ABOUT_DIALOG (dialog), vinder_developers);
+    adw_about_dialog_add_acknowledgement_section (ADW_ABOUT_DIALOG (dialog),
+                                                  _("Upstream Nautilus"), upstream_authors);
     adw_about_dialog_set_support_url (ADW_ABOUT_DIALOG (dialog), "https://github.com/paullinux-gn/vinder/issues");
-    /* Translators should localize the following string which will be displayed at the bottom of
-     * the about box to give credit to the translator(s). */
-    adw_about_dialog_set_translator_credits (ADW_ABOUT_DIALOG (dialog), _("translator-credits"));
+    const gchar *upstream_translators = _("translator-credits");
+    if (g_strcmp0 (upstream_translators, "translator-credits") != 0)
+    {
+        const gchar *translation_credits[] = { upstream_translators, NULL };
+        adw_about_dialog_add_acknowledgement_section (ADW_ABOUT_DIALOG (dialog),
+                                                      _("Upstream Nautilus translations"),
+                                                      translation_credits);
+    }
 
     adw_dialog_present (dialog, window ? GTK_WIDGET (window) : NULL);
 }

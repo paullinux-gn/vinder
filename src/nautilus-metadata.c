@@ -5,6 +5,7 @@
  */
 
 #include "nautilus-metadata.h"
+#include "nautilus-file.h"
 #include <glib.h>
 
 static char *used_metadata_names[] =
@@ -18,6 +19,7 @@ static char *used_metadata_names[] =
     NAUTILUS_METADATA_KEY_CUSTOM_ICON,
     NAUTILUS_METADATA_KEY_CUSTOM_ICON_NAME,
     NAUTILUS_METADATA_KEY_EMBLEMS,
+    NAUTILUS_METADATA_KEY_VINDER_VIEW_MODE,
     NULL
 };
 
@@ -39,4 +41,23 @@ nautilus_metadata_get_id (const char *metadata)
     }
 
     return GPOINTER_TO_INT (g_hash_table_lookup (hash, metadata));
+}
+
+/* Make a user's selection available while the asynchronous metadata write runs. */
+const char *
+vinder_folder_get_view_mode (NautilusFile *folder)
+{
+    const char *mode = g_object_get_data (G_OBJECT (folder), NAUTILUS_METADATA_KEY_VINDER_VIEW_MODE);
+
+    return mode != NULL ? mode : nautilus_file_get_metadata (folder, NAUTILUS_METADATA_KEY_VINDER_VIEW_MODE);
+}
+
+void
+vinder_folder_set_view_mode (NautilusFile *folder,
+                             const char   *mode)
+{
+    g_object_set_data_full (G_OBJECT (folder), NAUTILUS_METADATA_KEY_VINDER_VIEW_MODE,
+                            g_strdup (mode), g_free);
+    nautilus_file_set_metadata (folder, NAUTILUS_METADATA_KEY_VINDER_VIEW_MODE,
+                                NAUTILUS_METADATA_STRING, (gpointer) mode);
 }

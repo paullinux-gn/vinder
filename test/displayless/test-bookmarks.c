@@ -8,6 +8,9 @@
 #include <test-utilities.h>
 
 #include <glib.h>
+#include "config.h"
+
+#define BOOKMARKS_FOLDER (g_str_equal (PROFILE, "Vinder") ? "vinder" : "gtk-3.0")
 
 static void
 test_bookmark (void)
@@ -38,7 +41,7 @@ static GFile *
 setup_tmp_bookmarks_file (const char *tmp_dir)
 {
     g_autofree char *bookmark_list_folder = g_build_filename (tmp_dir,
-                                                              "gtk-3.0",
+                                                              BOOKMARKS_FOLDER,
                                                               NULL);
     g_autoptr (GFile) bookmarks_list_file = g_file_new_build_filename (bookmark_list_folder,
                                                                        "bookmarks",
@@ -154,7 +157,7 @@ test_bookmark_list_missing_file (void)
 {
     const char *tmp_dir = test_get_tmp_dir ();
     g_autoptr (GFile) bookmarks_list_file =
-        g_file_new_build_filename (tmp_dir, "gtk-3.0", "bookmarks", NULL);
+        g_file_new_build_filename (tmp_dir, BOOKMARKS_FOLDER, "bookmarks", NULL);
     g_autoptr (NautilusBookmarkList) list = NULL;
     g_autoptr (GFile) bookmark = g_file_new_build_filename (tmp_dir, "bookmark", NULL);
     g_autofree char *bookmark_uri = g_file_get_uri (bookmark);
@@ -349,6 +352,44 @@ test_bookmark_list_changed_signal_external (void)
     test_clear_tmp_dir ();
 }
 
+static void
+test_vinder_bookmarks_independent (void)
+{
+    if (!g_str_equal (PROFILE, "Vinder"))
+    {
+        g_test_skip ("Vinder-specific shortcut storage");
+        return;
+    }
+    const char *tmp = test_get_tmp_dir ();
+    g_setenv ("XDG_CONFIG_HOME", tmp, TRUE);
+    g_autofree char *legacy_dir = g_build_filename (tmp, "gtk-3.0", NULL);
+    g_mkdir_with_parents (legacy_dir, 0700);
+    g_autofree char *legacy_path = g_build_filename (legacy_dir, "bookmarks", NULL);
+    const char *original = "file:///tmp/vinder-shortcut Original\n";
+    g_assert_true (g_file_set_contents (legacy_path, original, -1, NULL));
+    g_autoptr (GFile) location = g_file_new_for_uri ("file:///tmp/vinder-shortcut");
+    g_autoptr (GFile) private_file = g_file_new_build_filename (tmp, "vinder", "bookmarks", NULL);
+    g_autoptr (NautilusBookmarkList) list = nautilus_bookmark_list_new ();
+    ITER_CONTEXT_WHILE (!nautilus_bookmark_list_contains (list, location));
+    nautilus_bookmark_list_remove (list, location);
+    ITER_CONTEXT_WHILE (file_has_string (private_file, "vinder-shortcut"));
+    g_autofree char *legacy_contents = NULL;
+    g_assert_true (g_file_get_contents (legacy_path, &legacy_contents, NULL, NULL));
+    g_assert_cmpstr (legacy_contents, ==, original);
+    g_clear_object (&list);
+
+    /* Nautilus saves its own list again, then Vinder restarts with an empty list. */
+    g_assert_true (g_file_set_contents (legacy_path, original, -1, NULL));
+    list = nautilus_bookmark_list_new ();
+    ChangedSignalTestData loaded = { 0, 1 };
+    g_signal_connect (list, "changed", G_CALLBACK (bookmark_list_changed_cb), &loaded);
+    ITER_CONTEXT_WHILE (loaded.signal_count == 0);
+    g_assert_false (file_has_string (private_file, "vinder-shortcut"));
+    g_assert_false (nautilus_bookmark_list_contains (list, location));
+    g_clear_object (&list);
+    test_clear_tmp_dir ();
+}
+
 int
 main (int   argc,
       char *argv[])
@@ -356,6 +397,8 @@ main (int   argc,
     g_test_init (&argc, &argv, NULL);
 
     nautilus_ensure_extension_points ();
+
+    g_test_add_func ("/bookmark-list/vinder-independent", test_vinder_bookmarks_independent);
 
     g_test_add_func ("/bookmarks/basic",
                      test_bookmark);

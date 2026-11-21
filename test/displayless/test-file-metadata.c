@@ -34,6 +34,28 @@ test_file_metadata_str_set (void)
     g_assert_cmpstr (nautilus_file_get_metadata (file, KEY_STR), ==, "value");
 }
 
+static void
+test_folder_view_modes (void)
+{
+    g_autoptr (NautilusFile) pictures = nautilus_file_get_by_uri ("file:///tmp/vinder-test-pictures");
+    g_autoptr (NautilusFile) documents = nautilus_file_get_by_uri ("file:///tmp/vinder-test-documents");
+
+    /* Existing metadata must work before a folder is changed in this session. */
+    nautilus_file_set_metadata (pictures, NAUTILUS_METADATA_KEY_VINDER_VIEW_MODE,
+                                NAUTILUS_METADATA_STRING, "grid");
+    g_assert_cmpstr (vinder_folder_get_view_mode (pictures), ==, "grid");
+
+    vinder_folder_set_view_mode (documents, "tree");
+    vinder_folder_set_view_mode (pictures, "list");
+    g_assert_cmpstr (vinder_folder_get_view_mode (pictures), ==, "list");
+    g_assert_cmpstr (vinder_folder_get_view_mode (documents), ==, "tree");
+
+    vinder_folder_set_view_mode (pictures, "grid");
+    g_assert_cmpstr (nautilus_file_get_metadata (pictures, NAUTILUS_METADATA_KEY_VINDER_VIEW_MODE),
+                     ==, "grid");
+    g_assert_cmpstr (vinder_folder_get_view_mode (documents), ==, "tree");
+}
+
 int
 main (int   argc,
       char *argv[])
@@ -48,6 +70,8 @@ main (int   argc,
                      test_file_metadata_bool_set_false);
     g_test_add_func ("/file-metadata-str-set/default",
                      test_file_metadata_str_set);
+
+    g_test_add_func ("/folder-view-metadata/independent-folders", test_folder_view_modes);
 
     return g_test_run ();
 }

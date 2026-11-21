@@ -3,6 +3,21 @@ window.devel.vinder-window toolbarview > .top-bar {
   background-image: none;
 }
 
+/* Inset file surface, surrounded by the sidebar palette. */
+.vinder-content-surround {
+  background-color: var(--sidebar-bg-color);
+}
+
+.vinder-content-surround:backdrop {
+  background-color: var(--sidebar-backdrop-color);
+}
+
+.vinder-content-card {
+  border-radius: 14px;
+  background-color: var(--view-bg-color);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
+}
+
 /* Mixed appearance uses Adwaita dark, with a light palette on the file side. */
 .vinder-dark-and-light .vinder-content {
   --window-bg-color: #fafafb;
@@ -16,6 +31,8 @@ window.devel.vinder-window toolbarview > .top-bar {
   --headerbar-darker-shade-color: var(--headerbar-shade-color);
   --card-bg-color: #fff;
   --card-fg-color: var(--window-fg-color);
+  --active-toggle-bg-color: #fff;
+  --active-toggle-fg-color: var(--window-fg-color);
   --thumbnail-bg-color: #fff;
   --thumbnail-fg-color: var(--window-fg-color);
   --scrollbar-outline-color: #fff;
@@ -58,6 +75,13 @@ window.devel.vinder-window toolbarview > .top-bar {
   --vinder-section-background: rgb(0 0 0 / 18%);
 }
 
+.navigation-sidebar > .vinder-places-caption {
+  margin: 8px 9px;
+  font-size: 0.8em;
+  font-weight: bold;
+  opacity: 0.7;
+}
+
 .navigation-sidebar.vinder-sidebar-frames > separator {
   opacity: 0;
   min-height: 8px;
@@ -85,6 +109,17 @@ window.devel.vinder-window toolbarview > .top-bar {
   padding-bottom: 7px;
   border-bottom-left-radius: 10px;
   border-bottom-right-radius: 10px;
+}
+
+/* Draw the divider over the panel fill, with an 8px inset on either side. */
+.navigation-sidebar.vinder-sidebar-frames > row.vinder-sidebar-divider:not(.section-start) {
+  --vinder-sidebar-divider-color: color-mix(in srgb, var(--sidebar-fg-color) 12%, transparent);
+  background-image: linear-gradient(var(--vinder-sidebar-divider-color), var(--vinder-sidebar-divider-color));
+  background-origin: border-box;
+  padding-top: 9px;
+  background-position: center 4px;
+  background-repeat: no-repeat;
+  background-size: calc(100% - 16px) 1px;
 }
 
 .navigation-sidebar.vinder-sidebar-frames > row > .sidebar-revealer {
@@ -193,6 +228,47 @@ window.devel.vinder-window toolbarview > .top-bar {
 .nautilus-path-button:not(.current-dir):not(:backdrop):hover label,
 .nautilus-path-button:not(.current-dir):not(:backdrop):hover image {
   opacity: 1;
+}
+
+/* Segmented breadcrumb experiment: retain the existing navigation buttons. */
+.vinder-segmented-pathbar .nautilus-path-button {
+  margin: 3px 1px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+}
+
+/* Inset dividers, following the toggle group's segment separators. */
+.vinder-path-segments > box > separator {
+  min-width: 1px;
+  min-height: 14px;
+  background-color: color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.vinder-path-segments > box:first-child > separator {
+  opacity: 0;
+}
+
+.vinder-segmented-pathbar > scrolledwindow {
+  margin-left: 2px;
+}
+
+.vinder-segmented-pathbar .nautilus-path-button.current-dir {
+  background-color: var(--active-toggle-bg-color);
+  color: var(--active-toggle-fg-color);
+  box-shadow: 0 1px 3px 1px rgb(0 0 6 / 7%),
+              0 2px 6px 2px rgb(0 0 6 / 3%);
+}
+
+.vinder-segmented-pathbar .nautilus-path-button.current-dir:hover {
+  background-color: color-mix(in srgb, var(--active-toggle-bg-color) 93%, currentColor);
+}
+
+@media (prefers-contrast: more) {
+  .vinder-segmented-pathbar .nautilus-path-button.current-dir {
+    outline: 1px solid var(--border-color);
+    outline-offset: -1px;
+  }
 }
 
 /* Search bar */

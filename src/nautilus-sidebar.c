@@ -362,7 +362,7 @@ list_box_header_func (GtkListBoxRow *row,
 {
     NautilusSidebarSectionType row_section_type;
     NautilusSidebarSectionType before_section_type;
-    GtkWidget *separator;
+    GtkWidget *header;
 
     gtk_list_box_row_set_header (row, NULL);
 
@@ -376,9 +376,11 @@ list_box_header_func (GtkListBoxRow *row,
         before_section_type = NAUTILUS_SIDEBAR_SECTION_INVALID;
     }
 
+    gboolean follows_computer = before != NULL &&
+                                gtk_widget_has_css_class (GTK_WIDGET (before), "vinder-computer-row");
     gboolean starts_section = before == NULL ||
-                               before_section_type != row_section_type ||
-                               gtk_widget_has_css_class (GTK_WIDGET (before), "vinder-computer-row");
+                              before_section_type != row_section_type ||
+                              follows_computer;
 
     gtk_widget_remove_css_class (GTK_WIDGET (row), "section-start");
     if (before != NULL)
@@ -387,8 +389,35 @@ list_box_header_func (GtkListBoxRow *row,
         if (starts_section)
         {
             gtk_widget_add_css_class (GTK_WIDGET (before), "section-end");
-            separator = gtk_separator_new (GTK_ORIENTATION_HORIZONTAL);
-            gtk_list_box_row_set_header (row, separator);
+            const char *caption = NULL;
+
+            if (follows_computer)
+            {
+                caption = _("PLACES");
+            }
+            else if (row_section_type == NAUTILUS_SIDEBAR_SECTION_BOOKMARKS)
+            {
+                caption = _("SHORTCUTS");
+            }
+            else if ((row_section_type == NAUTILUS_SIDEBAR_SECTION_CLOUD ||
+                      row_section_type == NAUTILUS_SIDEBAR_SECTION_MOUNTS) &&
+                     before_section_type != NAUTILUS_SIDEBAR_SECTION_CLOUD &&
+                     before_section_type != NAUTILUS_SIDEBAR_SECTION_MOUNTS)
+            {
+                caption = _("NETWORK");
+            }
+
+            if (caption != NULL)
+            {
+                header = gtk_label_new (caption);
+                gtk_label_set_xalign (GTK_LABEL (header), 0.5);
+                gtk_widget_add_css_class (header, "vinder-places-caption");
+            }
+            else
+            {
+                header = gtk_separator_new (GTK_ORIENTATION_HORIZONTAL);
+            }
+            gtk_list_box_row_set_header (row, header);
         }
     }
 
@@ -483,6 +512,12 @@ add_place (NautilusSidebar           *sidebar,
     g_signal_connect (gesture, "drag-update",
                       G_CALLBACK (on_row_dragged), row);
     gtk_widget_add_controller (row, GTK_EVENT_CONTROLLER (gesture));
+
+    if (g_strcmp0 (uri, SCHEME_RECENT ":///") == 0 ||
+        g_strcmp0 (uri, SCHEME_TRASH ":///") == 0)
+    {
+        gtk_widget_add_css_class (row, "vinder-sidebar-divider");
+    }
 
     gtk_list_box_insert (GTK_LIST_BOX (sidebar->list_box), GTK_WIDGET (row), -1);
     g_signal_connect_object (row, "notify::visible",

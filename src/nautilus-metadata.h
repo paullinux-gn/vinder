@@ -14,8 +14,11 @@
  */
 
 #include <glib.h>
+#include "nautilus-types.h"
 
 /* Per-file */
+
+#define NAUTILUS_METADATA_KEY_VINDER_VIEW_MODE "vinder-view-mode"
 
 #define NAUTILUS_METADATA_KEY_ICON_VIEW_SORT_BY          	"nautilus-icon-view-sort-by"
 #define NAUTILUS_METADATA_KEY_ICON_VIEW_SORT_REVERSED    	"nautilus-icon-view-sort-reversed"
@@ -30,3 +33,6 @@
 #define NAUTILUS_METADATA_KEY_EMBLEMS				"emblems"
 
 guint nautilus_metadata_get_id (const char *metadata);
+
+const char *vinder_folder_get_view_mode (NautilusFile *folder);
+void vinder_folder_set_view_mode (NautilusFile *folder, const char *mode);

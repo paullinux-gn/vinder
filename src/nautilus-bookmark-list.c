@@ -9,6 +9,8 @@
 /* nautilus-bookmark-list.c - implementation of centralized list of bookmarks.
  */
 
+#include "config.h"
+
 #include "nautilus-bookmark-list.h"
 
 #include "nautilus-bookmark.h"
@@ -60,14 +62,14 @@ nautilus_bookmark_list_get_file (void)
         g_getenv ("XDG_CONFIG_HOME"))
     {
         filename = g_build_filename (g_getenv ("XDG_CONFIG_HOME"),
-                                     "gtk-3.0",
+                                     g_str_equal (PROFILE, "Vinder") ? "vinder" : "gtk-3.0",
                                      "bookmarks",
                                      NULL);
     }
     else
     {
         filename = g_build_filename (g_get_user_config_dir (),
-                                     "gtk-3.0",
+                                     g_str_equal (PROFILE, "Vinder") ? "vinder" : "gtk-3.0",
                                      "bookmarks",
                                      NULL);
     }
@@ -186,9 +188,57 @@ nautilus_bookmarks_monitor_file (NautilusBookmarkList *bookmarks)
                              G_CONNECT_DEFAULT);
 }
 
+/* Import existing shortcuts once. An empty private file is intentional: never
+ * fall back to GTK bookmarks after the user has removed all Vinder shortcuts. */
+static void
+vinder_initialize_bookmarks (void)
+{
+    if (!g_str_equal (PROFILE, "Vinder"))
+    {
+        return;
+    }
+
+    g_autoptr (GFile) file = nautilus_bookmark_list_get_file ();
+    if (g_file_query_exists (file, NULL))
+    {
+        return;
+    }
+
+    g_autoptr (GFile) parent = g_file_get_parent (file);
+    g_autoptr (GError) error = NULL;
+    if (!g_file_make_directory_with_parents (parent, NULL, &error) &&
+        !g_error_matches (error, G_IO_ERROR, G_IO_ERROR_EXISTS))
+    {
+        g_warning ("Unable to create Vinder shortcuts folder: %s", error->message);
+        return;
+    }
+    g_clear_error (&error);
+
+    const char *config_dir = g_test_initialized () && g_getenv ("XDG_CONFIG_HOME")
+                             ? g_getenv ("XDG_CONFIG_HOME") : g_get_user_config_dir ();
+    g_autoptr (GFile) legacy = g_file_new_build_filename (config_dir, "gtk-3.0", "bookmarks", NULL);
+    if (g_file_copy (legacy, file, G_FILE_COPY_NONE, NULL, NULL, NULL, &error) ||
+        g_error_matches (error, G_IO_ERROR, G_IO_ERROR_EXISTS))
+    {
+        return;
+    }
+    if (!g_error_matches (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
+    {
+        g_warning ("Unable to import existing shortcuts: %s", error->message);
+        return;
+    }
+    g_clear_error (&error);
+    g_autoptr (GFileOutputStream) stream = g_file_create (file, G_FILE_CREATE_PRIVATE, NULL, &error);
+    if (stream == NULL && !g_error_matches (error, G_IO_ERROR, G_IO_ERROR_EXISTS))
+    {
+        g_warning ("Unable to initialize Vinder shortcuts: %s", error->message);
+    }
+}
+
 static void
 nautilus_bookmark_list_init (NautilusBookmarkList *bookmarks)
 {
+    vinder_initialize_bookmarks ();
     nautilus_bookmark_list_load_file (bookmarks);
     nautilus_bookmarks_monitor_file (bookmarks);
 }

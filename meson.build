@@ -176,7 +176,7 @@ endif
 application_id = profile == 'Vinder' ? 'io.github.paullinux_gn.Vinder' : 'org.gnome.Nautilus' + app_id_suffix
 
 if profile == 'Vinder'
-  version_string = '1.3'
+  version_string = '1.6'
 elif profile == ''
   # Example: 40.0
   version_string = meson.project_version()

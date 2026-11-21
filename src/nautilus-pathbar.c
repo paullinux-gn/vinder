@@ -291,6 +291,7 @@ nautilus_path_bar_init (NautilusPathBar *self)
     g_signal_connect (controller, "scroll", G_CALLBACK (on_scroll), self->scrolled);
 
     self->buttons_box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
+    gtk_widget_add_css_class (self->buttons_box, "vinder-path-segments");
     gtk_scrolled_window_set_child (GTK_SCROLLED_WINDOW (self->scrolled), self->buttons_box);
 
     self->current_view_menu_button = gtk_menu_button_new ();
@@ -331,6 +332,7 @@ nautilus_path_bar_init (NautilusPathBar *self)
 
     gtk_widget_add_css_class (GTK_WIDGET (self), "linked");
     gtk_widget_add_css_class (GTK_WIDGET (self), "nautilus-pathbar");
+    gtk_widget_add_css_class (GTK_WIDGET (self), "vinder-segmented-pathbar");
 
     /* Action group */
     self->action_group = G_ACTION_GROUP (g_simple_action_group_new ());
@@ -1245,14 +1247,9 @@ make_button_data (NautilusPathBar *self,
         /* Fall through */
         default:
         {
-            GtkWidget *separator_label;
-
-            separator_label = gtk_label_new (G_DIR_SEPARATOR_S);
-            gtk_widget_add_css_class (separator_label, "dimmed");
             button_data->label = gtk_label_new (NULL);
             child = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 2);
             button_data->container = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
-            gtk_box_append (GTK_BOX (button_data->container), separator_label);
             gtk_box_append (GTK_BOX (button_data->container), button_data->button);
 
             gtk_widget_set_visible (button_data->image, FALSE);
@@ -1262,10 +1259,14 @@ make_button_data (NautilusPathBar *self,
         break;
     }
 
+    GtkWidget *segment_separator = gtk_separator_new (GTK_ORIENTATION_VERTICAL);
+    gtk_widget_set_valign (segment_separator, GTK_ALIGN_CENTER);
+    gtk_box_prepend (GTK_BOX (button_data->container), segment_separator);
+
     if (current_dir)
     {
         gtk_widget_add_css_class (button_data->button, "current-dir");
-        gtk_widget_set_hexpand (button_data->button, TRUE);
+        gtk_widget_set_hexpand (button_data->button, FALSE);
         gtk_widget_set_halign (button_data->label, GTK_ALIGN_START);
         gtk_actionable_set_action_name (GTK_ACTIONABLE (button_data->button), "toolbar.edit-location");
     }

@@ -22,6 +22,7 @@
     "--talk-name=org.gnome.DiskUtility",
     "--talk-name=org.gnome.Settings",
     "--talk-name=org.gnome.Console",
+    "--talk-name=org.freedesktop.Flatpak",
     "--talk-name=org.gnome.Mutter.ServiceChannel",
     "--add-policy=LocalSearch3.dbus:org.freedesktop.Tracker3.Miner.Files=tracker:Audio",
     "--add-policy=LocalSearch3.dbus:org.freedesktop.Tracker3.Miner.Files=tracker:Documents",

@@ -2379,19 +2379,133 @@ action_new_folder_with_selection (GSimpleAction *action,
 }
 
 static void
-real_open_console (NautilusFile      *file,
-                   NautilusFilesView *view)
+open_console_at_location (NautilusFilesView *view,
+                          GFile             *location)
 {
     GtkRoot *window = gtk_widget_get_root (GTK_WIDGET (view));
-    GVariant *parameters;
-    g_autofree gchar *uri = NULL;
+    g_autofree char *uri = g_file_get_uri (location);
 
-    uri = nautilus_file_get_uri (file);
-    parameters = g_variant_new_parsed ("([%s], @a{sv} {})", uri);
-    nautilus_dbus_launcher_call (nautilus_dbus_launcher_get (),
-                                 NAUTILUS_DBUS_LAUNCHER_CONSOLE,
-                                 "Open",
-                                 parameters, GTK_WINDOW (window));
+    if (GTK_IS_WINDOW (window))
+    {
+        nautilus_dbus_launcher_call (nautilus_dbus_launcher_get (),
+                                     NAUTILUS_DBUS_LAUNCHER_CONSOLE,
+                                     "Open",
+                                     g_variant_new_parsed ("([%s], @a{sv} {})", uri),
+                                     GTK_WINDOW (window));
+    }
+}
+
+static void open_terminal_at_location (NautilusFilesView *view,
+                                       GFile             *location,
+                                       gboolean           use_ptyxis);
+
+static void
+on_terminal_finished (GObject      *source,
+                      GAsyncResult *result,
+                      gpointer      user_data)
+{
+    g_autoptr (NautilusFilesView) view = user_data;
+    GSubprocess *process = G_SUBPROCESS (source);
+    GFile *location = g_object_get_data (source, "terminal-location");
+
+    if (!g_subprocess_wait_check_finish (process, result, NULL))
+    {
+        if (g_object_get_data (source, "terminal-is-ptyxis") != NULL)
+        {
+            open_console_at_location (view, location);
+        }
+        else
+        {
+            open_terminal_at_location (view, location, TRUE);
+        }
+    }
+}
+
+static void
+open_terminal_at_location (NautilusFilesView *view,
+                           GFile             *location,
+                           gboolean           use_ptyxis)
+{
+    const char *path = g_file_peek_path (location);
+    const char *program = use_ptyxis ? "ptyxis" : "xdg-terminal-exec";
+    g_autoptr (GSubprocess) process = NULL;
+
+    if (path == NULL)
+    {
+        return;
+    }
+
+    gboolean sandboxed = nautilus_application_is_sandboxed ();
+    if (sandboxed)
+    {
+        const char *host_root = "/run/host/root";
+
+        if (g_str_equal (path, host_root))
+        {
+            path = "/";
+        }
+        else if (g_str_has_prefix (path, "/run/host/root/"))
+        {
+            path += strlen (host_root);
+        }
+    }
+
+    /* A running terminal may handle the request in another process, so the
+     * requested directory must travel as an argument as well as the cwd. */
+    g_autofree char *terminal_dir = g_strconcat (use_ptyxis ? "--working-directory=" : "--dir=",
+                                                 path, NULL);
+    const char *new_window = use_ptyxis ? "--new-window" : NULL;
+
+    if (sandboxed)
+    {
+        g_autofree char *host_dir = g_strconcat ("--directory=", path, NULL);
+
+        process = g_subprocess_new (G_SUBPROCESS_FLAGS_NONE, NULL,
+                                    "flatpak-spawn", "--host", host_dir,
+                                    program, terminal_dir, new_window, NULL);
+    }
+    else
+    {
+        g_autoptr (GSubprocessLauncher) launcher = g_subprocess_launcher_new (G_SUBPROCESS_FLAGS_NONE);
+
+        g_subprocess_launcher_set_cwd (launcher, path);
+        process = g_subprocess_launcher_spawn (launcher, NULL, program, terminal_dir,
+                                               new_window, NULL);
+    }
+
+    g_autoptr (GFile) host_location = g_file_new_for_path (path);
+    if (process == NULL)
+    {
+        if (use_ptyxis)
+        {
+            open_console_at_location (view, host_location);
+        }
+        else
+        {
+            open_terminal_at_location (view, host_location, TRUE);
+        }
+        return;
+    }
+
+    g_object_set_data_full (G_OBJECT (process), "terminal-location",
+                            g_steal_pointer (&host_location), g_object_unref);
+    g_object_set_data (G_OBJECT (process), "terminal-is-ptyxis", GINT_TO_POINTER (use_ptyxis));
+    g_subprocess_wait_async (process, NULL, on_terminal_finished, g_object_ref (view));
+}
+
+static GFile *
+get_terminal_location (NautilusFile *file)
+{
+    if (file == NULL)
+    {
+        return NULL;
+    }
+
+    g_autoptr (GFile) location = nautilus_file_get_location (file);
+
+    return nautilus_file_is_directory (file)
+           ? g_steal_pointer (&location)
+           : g_file_get_parent (location);
 }
 
 static void
@@ -2401,11 +2515,16 @@ action_open_console (GSimpleAction *action,
 {
     NautilusFilesView *self = user_data;
     g_autolist (NautilusFile) selection = nautilus_files_view_get_selection (self);
-    gboolean is_single_selection = list_len_is_one (selection);
 
-    g_return_if_fail (is_single_selection);
+    if (list_len_is_one (selection))
+    {
+        g_autoptr (GFile) location = get_terminal_location (selection->data);
 
-    real_open_console (NAUTILUS_FILE (selection->data), self);
+        if (location != NULL)
+        {
+            open_terminal_at_location (self, location, FALSE);
+        }
+    }
 }
 
 static void
@@ -2413,10 +2532,14 @@ action_current_dir_open_console (GSimpleAction *action,
                                  GVariant      *state,
                                  gpointer       user_data)
 {
-    g_return_if_fail (NAUTILUS_IS_FILES_VIEW (user_data));
-
     NautilusFilesView *self = user_data;
-    real_open_console (self->directory_as_file, self);
+
+    if (self->directory_as_file != NULL)
+    {
+        g_autoptr (GFile) location = nautilus_file_get_location (self->directory_as_file);
+
+        open_terminal_at_location (self, location, FALSE);
+    }
 }
 
 static void
@@ -7359,15 +7482,17 @@ nautilus_files_view_update_actions_state (NautilusFilesView *self)
                               !selection_contains_starred &&
                               can_paste_files_into);
 
+    g_autoptr (GFile) terminal_location = list_len_is_one (selection)
+                                         ? get_terminal_location (selection->data) : NULL;
+    g_autoptr (GFile) current_terminal_location = self->directory_as_file != NULL
+                                        ? nautilus_file_get_location (self->directory_as_file) : NULL;
+
     files_action_set_enabled (self, "console",
-                              mode == NAUTILUS_MODE_BROWSE &&
-                              list_len_is_one (selection) && nautilus_file_is_directory (selection->data) &&
-                              nautilus_dbus_launcher_is_available (nautilus_dbus_launcher_get (),
-                                                                   NAUTILUS_DBUS_LAUNCHER_CONSOLE));
+                              mode == NAUTILUS_MODE_BROWSE && terminal_location != NULL &&
+                              g_file_peek_path (terminal_location) != NULL);
     files_action_set_enabled (self, "current-directory-console",
-                              mode == NAUTILUS_MODE_BROWSE &&
-                              nautilus_dbus_launcher_is_available (nautilus_dbus_launcher_get (),
-                                                                   NAUTILUS_DBUS_LAUNCHER_CONSOLE));
+                              mode == NAUTILUS_MODE_BROWSE && current_terminal_location != NULL &&
+                              g_file_peek_path (current_terminal_location) != NULL);
     files_action_set_enabled (self, "properties",
                               mode == NAUTILUS_MODE_BROWSE &&
                               (is_network_view ?

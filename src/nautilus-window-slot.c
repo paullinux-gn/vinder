@@ -8,6 +8,7 @@
 #define G_LOG_DOMAIN "nautilus-window"
 
 #include "nautilus-window-slot.h"
+#include "nautilus-metadata.h"
 
 #include "nautilus-application.h"
 #include "nautilus-bookmark.h"
@@ -269,6 +270,18 @@ nautilus_window_slot_get_view_id_for_location (NautilusWindowSlot *self,
     if (nautilus_is_root_for_scheme (effective_location, SCHEME_NETWORK_VIEW))
     {
         return NAUTILUS_VIEW_NETWORK_ID;
+    }
+
+    g_autoptr (NautilusFile) folder = nautilus_file_get (effective_location);
+    const char *mode = vinder_folder_get_view_mode (folder);
+
+    if (g_strcmp0 (mode, "grid") == 0)
+    {
+        return NAUTILUS_VIEW_GRID_ID;
+    }
+    if (g_strcmp0 (mode, "list") == 0 || g_strcmp0 (mode, "tree") == 0)
+    {
+        return NAUTILUS_VIEW_LIST_ID;
     }
 
     return self->default_view_id;
@@ -1079,6 +1092,16 @@ change_files_view_mode (NautilusWindowSlot *self,
     {
         self->default_view_id = view_id;
         g_settings_set_enum (nautilus_preferences, NAUTILUS_PREFERENCES_DEFAULT_FOLDER_VIEWER, view_id);
+    }
+
+    if (self->location != NULL)
+    {
+        g_autoptr (NautilusFile) folder = nautilus_file_get (self->location);
+        const char *saved = vinder_folder_get_view_mode (folder);
+        gboolean tree = saved != NULL ? g_str_equal (saved, "tree")
+                                      : g_settings_get_boolean (nautilus_list_view_preferences,
+                                                                 NAUTILUS_PREFERENCES_LIST_VIEW_USE_TREE);
+        vinder_folder_set_view_mode (folder, view_id == NAUTILUS_VIEW_GRID_ID ? "grid" : tree ? "tree" : "list");
     }
 
     nautilus_window_slot_set_view_id (self, view_id);
