@@ -28,4 +28,23 @@ char *vinder_blur_css_build (double   opacity,
                              int      top_bar_height,
                              int      column_header_height);
 
+/* Ready-made combinations of the blur settings, shown as one row in the Interface
+ * dialog. "off" only turns the blur off and leaves the sliders where they are. */
+typedef struct
+{
+    const char *name;
+    gboolean blur;
+    double opacity;
+    double strength;
+} VinderBlurPreset;
+
+guint vinder_blur_preset_count (void);
+const VinderBlurPreset *vinder_blur_preset_get (guint index);
+const VinderBlurPreset *vinder_blur_preset_find (const char *name);
+
+/* The name of the preset the current settings add up to, or NULL for a custom mix. */
+const char *vinder_blur_preset_match (gboolean blur,
+                                      double   opacity,
+                                      double   strength);
+
 G_END_DECLS

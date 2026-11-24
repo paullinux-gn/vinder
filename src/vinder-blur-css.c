@@ -2,6 +2,8 @@
 
 #include "vinder-blur-css.h"
 
+#include <math.h>
+
 /* Space between the column header and the first row of the list. */
 #define LIST_ROW_GAP 16
 
@@ -102,4 +104,62 @@ vinder_blur_css_build (double   opacity,
         (int) opacity,
         (int) strength, (int) opacity,
         menu_css != NULL ? menu_css : "");
+}
+
+/* "glass" is what Vinder has always used when blur is switched on. */
+static const VinderBlurPreset presets[] =
+{
+    { "off", FALSE, 0, 0 },
+    { "subtle", TRUE, 92, 12 },
+    { "glass", TRUE, 78, 30 },
+    { "frosted", TRUE, 60, 40 },
+};
+
+guint
+vinder_blur_preset_count (void)
+{
+    return G_N_ELEMENTS (presets);
+}
+
+const VinderBlurPreset *
+vinder_blur_preset_get (guint index)
+{
+    return index < G_N_ELEMENTS (presets) ? &presets[index] : NULL;
+}
+
+const VinderBlurPreset *
+vinder_blur_preset_find (const char *name)
+{
+    for (guint i = 0; name != NULL && i < G_N_ELEMENTS (presets); i++)
+    {
+        if (g_str_equal (presets[i].name, name))
+        {
+            return &presets[i];
+        }
+    }
+
+    return NULL;
+}
+
+const char *
+vinder_blur_preset_match (gboolean blur,
+                          double   opacity,
+                          double   strength)
+{
+    for (guint i = 0; i < G_N_ELEMENTS (presets); i++)
+    {
+        if (presets[i].blur != !!blur)
+        {
+            continue;
+        }
+
+        /* Without blur only "off" applies, whatever the sliders say. */
+        if (!blur ||
+            (round (opacity) == presets[i].opacity && round (strength) == presets[i].strength))
+        {
+            return presets[i].name;
+        }
+    }
+
+    return NULL;
 }

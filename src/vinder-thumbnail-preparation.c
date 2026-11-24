@@ -91,12 +91,26 @@ on_thumbnails_setting_changed (GSettings  *settings,
     update_paused (user_data);
 }
 
-static void
+static gboolean
 on_input_event_cb (GtkEventControllerLegacy *controller,
                    GdkEvent                 *event,
                    gpointer                  user_data)
 {
     vinder_thumbnail_scheduler_notify_activity (user_data);
+
+    /* This capture-phase controller only records activity; never consume input. */
+    return GDK_EVENT_PROPAGATE;
+}
+
+GtkEventController *
+vinder_thumbnail_preparation_activity_controller_new (VinderThumbnailScheduler *scheduler)
+{
+    GtkEventController *controller = gtk_event_controller_legacy_new ();
+
+    gtk_event_controller_set_propagation_phase (controller, GTK_PHASE_CAPTURE);
+    g_signal_connect_object (controller, "event", G_CALLBACK (on_input_event_cb), scheduler, 0);
+
+    return controller;
 }
 
 /* Activity only counts when it happens in one of Vinder's own windows. */
@@ -105,11 +119,8 @@ watch_window_input (GtkApplication *application,
                     GtkWindow      *window,
                     gpointer        user_data)
 {
-    GtkEventController *controller = gtk_event_controller_legacy_new ();
-
-    gtk_event_controller_set_propagation_phase (controller, GTK_PHASE_CAPTURE);
-    g_signal_connect_object (controller, "event", G_CALLBACK (on_input_event_cb), user_data, 0);
-    gtk_widget_add_controller (GTK_WIDGET (window), controller);
+    gtk_widget_add_controller (GTK_WIDGET (window),
+                               vinder_thumbnail_preparation_activity_controller_new (user_data));
 }
 
 /* ---- which folders ---- */

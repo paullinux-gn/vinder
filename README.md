@@ -2,7 +2,7 @@
 
 Vinder is a file manager for GNOME, based on [GNOME Files (Nautilus)](https://apps.gnome.org/Nautilus/). It combines familiar file management with a customisable interface, three folder views, independent sidebar shortcuts, and background thumbnail preparation.
 
-**Current release: [Vinder 1.7](https://github.com/paullinux-gn/vinder/releases/tag/v1.7).** Vinder has its own application ID and can be installed alongside GNOME Files.
+**Current release: [Vinder 1.8](https://github.com/paullinux-gn/vinder/releases/tag/v1.8).** Vinder has its own application ID and can be installed alongside GNOME Files.
 
 ## Screenshots
 
@@ -83,19 +83,19 @@ Vinder retains the core Nautilus file-management tools:
 
 ## Install the Flatpak
 
-Download **Vinder-1.7-x86_64.flatpak** from the [1.7 release](https://github.com/paullinux-gn/vinder/releases/tag/v1.7). The bundle uses the **GNOME 51 runtime** from Flathub. If Flathub is not configured, follow the [Flathub setup instructions](https://flathub.org/setup) for your distribution first.
+Download **Vinder-1.8-x86_64.flatpak** from the [1.8 release](https://github.com/paullinux-gn/vinder/releases/tag/v1.8). The bundle uses the **GNOME 51 runtime** from Flathub. If Flathub is not configured, follow the [Flathub setup instructions](https://flathub.org/setup) for your distribution first.
 
 From the folder containing the download:
 
 ```sh
-flatpak install --user ./Vinder-1.7-x86_64.flatpak
+flatpak install --user ./Vinder-1.8-x86_64.flatpak
 flatpak run io.github.paullinux_gn.Vinder
 ```
 
 To replace an existing user installation:
 
 ```sh
-flatpak install --user --reinstall ./Vinder-1.7-x86_64.flatpak
+flatpak install --user --reinstall ./Vinder-1.8-x86_64.flatpak
 ```
 
 If Vinder is installed system-wide, use `--system` instead of `--user`. Keep the installation scope consistent when updating. Close Vinder before reinstalling, then reopen it.
@@ -124,7 +124,7 @@ The Flatpak manifest is [build-aux/flatpak/io.github.paullinux_gn.Vinder.json](b
 
 Vinder is developed and maintained by **Paul Beyens ([paullinux-gn](https://github.com/paullinux-gn))**. The inherited Nautilus authors are credited for the upstream code; they are not listed as members of the Vinder development team. GitHub's automatic Contributors list includes authors from the inherited Nautilus commit history.
 
-Vinder builds on the work of the [GNOME Nautilus contributors](https://gitlab.gnome.org/GNOME/nautilus). See [LICENSE](LICENSE) for licensing terms and [the 1.7 release notes](RELEASE_NOTES_1.7.md) for the release overview. Report Vinder issues on [GitHub](https://github.com/paullinux-gn/vinder/issues).
+Vinder builds on the work of the [GNOME Nautilus contributors](https://gitlab.gnome.org/GNOME/nautilus). See [LICENSE](LICENSE) for licensing terms and [the 1.8 release notes](RELEASE_NOTES_1.8.md) for the release overview. Report Vinder issues on [GitHub](https://github.com/paullinux-gn/vinder/issues).
 
 ## Nautilus backend fixes
 

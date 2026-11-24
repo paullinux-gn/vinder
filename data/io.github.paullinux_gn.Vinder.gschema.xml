@@ -119,6 +119,7 @@
     </key>
     <key name="vinder-appearance" type="s">
       <choices>
+        <choice value="system"/>
         <choice value="light"/>
         <choice value="dark"/>
         <choice value="dark-and-light"/>

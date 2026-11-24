@@ -124,6 +124,82 @@ test_menu_blur_can_be_switched_off (void)
     assert_lacks (without_menus, "popover > contents");
 }
 
+static void
+test_every_preset_recognises_itself (void)
+{
+    for (guint i = 0; i < vinder_blur_preset_count (); i++)
+    {
+        const VinderBlurPreset *preset = vinder_blur_preset_get (i);
+
+        g_assert_nonnull (preset);
+        g_assert_cmpstr (vinder_blur_preset_match (preset->blur, preset->opacity, preset->strength),
+                         ==, preset->name);
+        g_assert_true (vinder_blur_preset_find (preset->name) == preset);
+    }
+
+    g_assert_null (vinder_blur_preset_get (vinder_blur_preset_count ()));
+    g_assert_null (vinder_blur_preset_find ("bogus"));
+    g_assert_null (vinder_blur_preset_find (NULL));
+}
+
+static void
+test_presets_stay_inside_the_slider_ranges (void)
+{
+    g_autoptr (GHashTable) names = g_hash_table_new (g_str_hash, g_str_equal);
+
+    g_assert_cmpuint (vinder_blur_preset_count (), ==, 4);
+
+    for (guint i = 0; i < vinder_blur_preset_count (); i++)
+    {
+        const VinderBlurPreset *preset = vinder_blur_preset_get (i);
+
+        /* The sliders go from 0 to 100 (opacity) and 0 to 40 (strength). */
+        g_assert_cmpfloat (preset->opacity, >=, 0);
+        g_assert_cmpfloat (preset->opacity, <=, 100);
+        g_assert_cmpfloat (preset->strength, >=, 0);
+        g_assert_cmpfloat (preset->strength, <=, 40);
+        g_assert_true (g_hash_table_add (names, (gpointer) preset->name));
+    }
+}
+
+static void
+test_off_ignores_the_sliders (void)
+{
+    g_assert_cmpstr (vinder_blur_preset_match (FALSE, 78, 30), ==, "off");
+    g_assert_cmpstr (vinder_blur_preset_match (FALSE, 12, 3), ==, "off");
+
+    /* Blur on never counts as "off". */
+    g_assert_cmpstr (vinder_blur_preset_match (TRUE, 78, 30), !=, "off");
+}
+
+static void
+test_a_custom_mix_matches_nothing (void)
+{
+    g_assert_null (vinder_blur_preset_match (TRUE, 70, 30));
+    g_assert_null (vinder_blur_preset_match (TRUE, 78, 31));
+    g_assert_null (vinder_blur_preset_match (TRUE, 0, 0));
+}
+
+static void
+test_rounding_is_forgiving (void)
+{
+    /* The sliders are whole numbers, but settings are doubles. */
+    g_assert_cmpstr (vinder_blur_preset_match (TRUE, 78.4, 29.6), ==, "glass");
+    g_assert_cmpstr (vinder_blur_preset_match (TRUE, 91.6, 12.2), ==, "subtle");
+}
+
+static void
+test_glass_is_what_vinder_always_used (void)
+{
+    /* Switching blur on used to give exactly these values. */
+    const VinderBlurPreset *glass = vinder_blur_preset_find ("glass");
+
+    g_assert_nonnull (glass);
+    g_assert_true (glass->blur);
+    g_assert_cmpfloat (glass->opacity, ==, 78);
+    g_assert_cmpfloat (glass->strength, ==, 30);
+}
+
 int
 main (int   argc,
       char *argv[])
@@ -144,6 +220,18 @@ main (int   argc,
                      test_below_the_cap_the_sliders_apply_as_they_are);
     g_test_add_func ("/vinder-blur-css/menu-blur-switch",
                      test_menu_blur_can_be_switched_off);
+    g_test_add_func ("/vinder-blur-presets/recognise-themselves",
+                     test_every_preset_recognises_itself);
+    g_test_add_func ("/vinder-blur-presets/inside-slider-ranges",
+                     test_presets_stay_inside_the_slider_ranges);
+    g_test_add_func ("/vinder-blur-presets/off-ignores-sliders",
+                     test_off_ignores_the_sliders);
+    g_test_add_func ("/vinder-blur-presets/custom-matches-nothing",
+                     test_a_custom_mix_matches_nothing);
+    g_test_add_func ("/vinder-blur-presets/rounding",
+                     test_rounding_is_forgiving);
+    g_test_add_func ("/vinder-blur-presets/glass-is-the-old-default",
+                     test_glass_is_what_vinder_always_used);
 
     return g_test_run ();
 }

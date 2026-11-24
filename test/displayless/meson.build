@@ -29,6 +29,11 @@ tests = {
   'test-vinder-thumbnail-scheduler': {},
 }
 
+# The input activity controller exists only in Vinder and Vinder Devel profiles.
+if get_option('profile') != ''
+  tests += {'test-vinder-activity-controller': {}}
+endif
+
 foreach test_name, extra_args : tests
   source = test_name + '.c'
   suite = ['displayless'] + extra_args.get('suite', [])

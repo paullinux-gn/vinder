@@ -18,11 +18,19 @@ update_appearance (GSettings           *settings,
     GAction *action = g_action_map_lookup_action (G_ACTION_MAP (self), key);
     gboolean mixed = g_str_equal (appearance, "dark-and-light");
 
+    AdwColorScheme scheme = ADW_COLOR_SCHEME_FORCE_DARK;
+
+    if (g_str_equal (appearance, "light"))
+    {
+        scheme = ADW_COLOR_SCHEME_FORCE_LIGHT;
+    }
+    else if (g_str_equal (appearance, "system"))
+    {
+        scheme = ADW_COLOR_SCHEME_DEFAULT;      /* follow the system */
+    }
+
     g_simple_action_set_state (G_SIMPLE_ACTION (action), g_variant_new_string (appearance));
-    adw_style_manager_set_color_scheme (adw_style_manager_get_default (),
-                                       g_str_equal (appearance, "light")
-                                       ? ADW_COLOR_SCHEME_FORCE_LIGHT
-                                       : ADW_COLOR_SCHEME_FORCE_DARK);
+    adw_style_manager_set_color_scheme (adw_style_manager_get_default (), scheme);
 
     for (GList *l = nautilus_application_get_windows (self); l != NULL; l = l->next)
     {
@@ -317,6 +325,340 @@ add_interface_slider (AdwPreferencesGroup *group,
     return GTK_WIDGET (row);
 }
 
+/* ---- appearance: a toggle group with a small picture for each choice ---- */
+
+typedef struct
+{
+    const char *frame;
+    const char *sidebar;
+    const char *sidebar_lines;
+    const char *header;
+    const char *view;
+    const char *lines;
+} MockPalette;
+
+/* Adwaita's own colors, so the pictures match what the user will get. */
+static const MockPalette light_mock = { "#c4c4c9", "#ebebed", "#bdbdc2", "#ffffff", "#ffffff", "#c8c8cd" };
+static const MockPalette dark_mock = { "#0c0c0e", "#2e2e32", "#5a5a62", "#2e2e32", "#1d1d20", "#4a4a52" };
+static const MockPalette mixed_mock = { "#0c0c0e", "#2e2e32", "#5a5a62", "#ffffff", "#ffffff", "#c8c8cd" };
+
+static void
+set_color (cairo_t    *cr,
+           const char *spec)
+{
+    GdkRGBA color;
+
+    gdk_rgba_parse (&color, spec);
+    gdk_cairo_set_source_rgba (cr, &color);
+}
+
+static void
+rounded_rectangle (cairo_t *cr,
+                   double   x,
+                   double   y,
+                   double   width,
+                   double   height,
+                   double   radius)
+{
+    cairo_new_sub_path (cr);
+    cairo_arc (cr, x + width - radius, y + radius, radius, -G_PI_2, 0);
+    cairo_arc (cr, x + width - radius, y + height - radius, radius, 0, G_PI_2);
+    cairo_arc (cr, x + radius, y + height - radius, radius, G_PI_2, G_PI);
+    cairo_arc (cr, x + radius, y + radius, radius, G_PI, 3 * G_PI_2);
+    cairo_close_path (cr);
+}
+
+static void
+draw_bars (cairo_t    *cr,
+           const char *color,
+           double      x,
+           double      y,
+           double      width,
+           const double *lengths,
+           guint       n_bars)
+{
+    set_color (cr, color);
+    for (guint i = 0; i < n_bars; i++)
+    {
+        rounded_rectangle (cr, x, y + i * 7, width * lengths[i], 3, 1.5);
+        cairo_fill (cr);
+    }
+}
+
+/* A tiny file manager window: sidebar, header bar and a few rows. */
+static void
+draw_mock_window (cairo_t           *cr,
+                  int                width,
+                  int                height,
+                  const MockPalette *palette)
+{
+    const double sidebar_width = width * 0.32;
+    const double header_height = height * 0.24;
+    const double sidebar_bars[] = { 0.8, 0.65, 0.72 };
+    const double row_bars[] = { 0.85, 0.6, 0.72 };
+
+    cairo_save (cr);
+    rounded_rectangle (cr, 0.5, 0.5, width - 1, height - 1, 6);
+    cairo_clip (cr);
+
+    set_color (cr, palette->view);
+    cairo_paint (cr);
+
+    set_color (cr, palette->header);
+    cairo_rectangle (cr, sidebar_width, 0, width - sidebar_width, header_height);
+    cairo_fill (cr);
+
+    set_color (cr, palette->sidebar);
+    cairo_rectangle (cr, 0, 0, sidebar_width, height);
+    cairo_fill (cr);
+
+    draw_bars (cr, palette->sidebar_lines, 5, 9, sidebar_width - 10, sidebar_bars, G_N_ELEMENTS (sidebar_bars));
+    draw_bars (cr, palette->lines, sidebar_width + 6, header_height + 6,
+               width - sidebar_width - 12, row_bars, G_N_ELEMENTS (row_bars));
+    cairo_restore (cr);
+
+    rounded_rectangle (cr, 0.5, 0.5, width - 1, height - 1, 6);
+    set_color (cr, palette->frame);
+    cairo_set_line_width (cr, 1);
+    cairo_stroke (cr);
+}
+
+static void
+draw_appearance_preview (GtkDrawingArea *area,
+                         cairo_t        *cr,
+                         int             width,
+                         int             height,
+                         gpointer        user_data)
+{
+    const char *appearance = user_data;
+
+    if (g_str_equal (appearance, "dark"))
+    {
+        draw_mock_window (cr, width, height, &dark_mock);
+    }
+    else if (g_str_equal (appearance, "dark-and-light"))
+    {
+        draw_mock_window (cr, width, height, &mixed_mock);
+    }
+    else
+    {
+        draw_mock_window (cr, width, height, &light_mock);
+
+        if (g_str_equal (appearance, "system"))
+        {
+            /* Half and half: the window changes with the system. */
+            cairo_save (cr);
+            cairo_move_to (cr, width, 0);
+            cairo_line_to (cr, width, height);
+            cairo_line_to (cr, 0, height);
+            cairo_close_path (cr);
+            cairo_clip (cr);
+            draw_mock_window (cr, width, height, &dark_mock);
+            cairo_restore (cr);
+        }
+    }
+}
+
+static GtkWidget *
+create_appearance_preview (const char *appearance)
+{
+    GtkWidget *preview = g_object_new (GTK_TYPE_DRAWING_AREA,
+                                       "accessible-role", GTK_ACCESSIBLE_ROLE_PRESENTATION,
+                                       "content-width", 64,
+                                       "content-height", 42,
+                                       "halign", GTK_ALIGN_CENTER,
+                                       NULL);
+
+    /* The strings passed here are static, so they outlive the widget. */
+    gtk_drawing_area_set_draw_func (GTK_DRAWING_AREA (preview), draw_appearance_preview,
+                                    (gpointer) appearance, NULL);
+
+    return preview;
+}
+
+static void
+on_appearance_toggled (AdwToggleGroup *group,
+                       GParamSpec     *pspec,
+                       gpointer        user_data)
+{
+    const char *name = adw_toggle_group_get_active_name (group);
+
+    if (name != NULL)
+    {
+        g_settings_set_string (nautilus_preferences, "vinder-appearance", name);
+    }
+}
+
+static void
+on_appearance_setting_changed (GSettings      *settings,
+                               const char     *key,
+                               AdwToggleGroup *group)
+{
+    g_autofree char *appearance = g_settings_get_string (settings, key);
+
+    g_signal_handlers_block_by_func (group, on_appearance_toggled, NULL);
+    adw_toggle_group_set_active_name (group, appearance);
+    g_signal_handlers_unblock_by_func (group, on_appearance_toggled, NULL);
+}
+
+static GtkWidget *
+create_appearance_selector (void)
+{
+    const struct
+    {
+        const char *name;
+        const char *label;
+        const char *tooltip;
+    } choices[] = {
+        { "system", _("Follow System"), _("Use the light or dark appearance chosen in the system settings") },
+        { "light", _("Light"), _("Always use the light appearance") },
+        { "dark", _("Dark"), _("Always use the dark appearance") },
+        { "dark-and-light", _("Dark and Light"), _("Dark sidebar and window, light file area") },
+    };
+    AdwToggleGroup *group = ADW_TOGGLE_GROUP (adw_toggle_group_new ());
+    gboolean system_supported =
+        adw_style_manager_get_system_supports_color_schemes (adw_style_manager_get_default ());
+    g_autofree char *current = g_settings_get_string (nautilus_preferences, "vinder-appearance");
+
+    adw_toggle_group_set_homogeneous (group, TRUE);
+    adw_toggle_group_set_can_shrink (group, TRUE);
+
+    for (guint i = 0; i < G_N_ELEMENTS (choices); i++)
+    {
+        AdwToggle *toggle = adw_toggle_new ();
+        GtkWidget *box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 6);
+        GtkWidget *label = gtk_label_new (choices[i].label);
+
+        gtk_label_set_wrap (GTK_LABEL (label), TRUE);
+        gtk_label_set_wrap_mode (GTK_LABEL (label), PANGO_WRAP_WORD_CHAR);
+        gtk_label_set_justify (GTK_LABEL (label), GTK_JUSTIFY_CENTER);
+        gtk_label_set_max_width_chars (GTK_LABEL (label), 10);
+        gtk_widget_set_margin_top (box, 6);
+        gtk_widget_set_margin_bottom (box, 6);
+        gtk_widget_set_margin_start (box, 6);
+        gtk_widget_set_margin_end (box, 6);
+        gtk_box_append (GTK_BOX (box), create_appearance_preview (choices[i].name));
+        gtk_box_append (GTK_BOX (box), label);
+
+        adw_toggle_set_name (toggle, choices[i].name);
+        /* The label is what assistive technology reads; the child is what is shown. */
+        adw_toggle_set_label (toggle, choices[i].label);
+        adw_toggle_set_tooltip (toggle, choices[i].tooltip);
+        adw_toggle_set_child (toggle, box);
+
+        if (!system_supported && g_str_equal (choices[i].name, "system"))
+        {
+            adw_toggle_set_enabled (toggle, FALSE);
+            adw_toggle_set_tooltip (toggle, _("Your desktop does not provide a light or dark setting"));
+        }
+
+        adw_toggle_group_add (group, toggle);
+    }
+
+    /* Adding the first toggle selects it: set the real state before listening. */
+    adw_toggle_group_set_active_name (group, current);
+    g_signal_connect (group, "notify::active-name", G_CALLBACK (on_appearance_toggled), NULL);
+    g_signal_connect_object (nautilus_preferences, "changed::vinder-appearance",
+                             G_CALLBACK (on_appearance_setting_changed), group, 0);
+
+    gtk_widget_set_halign (GTK_WIDGET (group), GTK_ALIGN_CENTER);
+    gtk_widget_set_margin_top (GTK_WIDGET (group), 6);
+    gtk_widget_set_margin_bottom (GTK_WIDGET (group), 6);
+
+    return GTK_WIDGET (group);
+}
+
+/* ---- blur presets: Off, Subtle, Glass, Frosted ---- */
+
+static const char *
+current_blur_preset (void)
+{
+    return vinder_blur_preset_match (g_settings_get_boolean (nautilus_preferences, "vinder-blur"),
+                                     g_settings_get_double (nautilus_preferences, "vinder-blur-opacity"),
+                                     g_settings_get_double (nautilus_preferences, "vinder-blur-strength"));
+}
+
+static void
+on_blur_preset_toggled (AdwToggleGroup *group,
+                        GParamSpec     *pspec,
+                        gpointer        user_data)
+{
+    const char *name = adw_toggle_group_get_active_name (group);
+    const VinderBlurPreset *preset = vinder_blur_preset_find (name);
+
+    if (preset == NULL)
+    {
+        return;
+    }
+
+    /* "Off" leaves the sliders alone, so the next preset starts from sensible values. */
+    if (preset->blur)
+    {
+        g_settings_set_double (nautilus_preferences, "vinder-blur-opacity", preset->opacity);
+        g_settings_set_double (nautilus_preferences, "vinder-blur-strength", preset->strength);
+    }
+    g_settings_set_boolean (nautilus_preferences, "vinder-blur", preset->blur);
+}
+
+/* Moving a slider or flipping the switch can leave the presets behind: then none is lit. */
+static void
+on_blur_values_changed (GSettings      *settings,
+                        const char     *key,
+                        AdwToggleGroup *group)
+{
+    g_signal_handlers_block_by_func (group, on_blur_preset_toggled, NULL);
+    adw_toggle_group_set_active_name (group, current_blur_preset ());
+    g_signal_handlers_unblock_by_func (group, on_blur_preset_toggled, NULL);
+}
+
+static GtkWidget *
+create_blur_preset_row (void)
+{
+    const struct
+    {
+        const char *name;
+        const char *label;
+        const char *tooltip;
+    } presets[] = {
+        { "off", _("Off"), _("No blur") },
+        { "subtle", _("Subtle"), _("Mostly solid, with a light blur") },
+        { "glass", _("Glass"), _("See-through, with a medium blur") },
+        { "frosted", _("Frosted"), _("More see-through, with a strong blur") },
+    };
+    AdwActionRow *row = ADW_ACTION_ROW (adw_action_row_new ());
+    AdwToggleGroup *group = ADW_TOGGLE_GROUP (adw_toggle_group_new ());
+    const char *signals[] = { "changed::vinder-blur", "changed::vinder-blur-opacity", "changed::vinder-blur-strength" };
+
+    adw_toggle_group_set_can_shrink (group, TRUE);
+
+    for (guint i = 0; i < G_N_ELEMENTS (presets); i++)
+    {
+        AdwToggle *toggle = adw_toggle_new ();
+
+        g_return_val_if_fail (vinder_blur_preset_find (presets[i].name) != NULL, NULL);
+
+        adw_toggle_set_name (toggle, presets[i].name);
+        adw_toggle_set_label (toggle, presets[i].label);
+        adw_toggle_set_tooltip (toggle, presets[i].tooltip);
+        adw_toggle_group_add (group, toggle);
+    }
+
+    /* Adding the first toggle selects it: set the real state before listening. */
+    adw_toggle_group_set_active_name (group, current_blur_preset ());
+    g_signal_connect (group, "notify::active-name", G_CALLBACK (on_blur_preset_toggled), NULL);
+    for (guint i = 0; i < G_N_ELEMENTS (signals); i++)
+    {
+        g_signal_connect_object (nautilus_preferences, signals[i],
+                                 G_CALLBACK (on_blur_values_changed), group, 0);
+    }
+
+    adw_preferences_row_set_title (ADW_PREFERENCES_ROW (row), _("Preset"));
+    gtk_widget_set_valign (GTK_WIDGET (group), GTK_ALIGN_CENTER);
+    adw_action_row_add_suffix (row, GTK_WIDGET (group));
+
+    return GTK_WIDGET (row);
+}
+
 static void
 action_interface (GSimpleAction *action,
                       GVariant      *parameter,
@@ -328,33 +670,15 @@ action_interface (GSimpleAction *action,
     AdwPreferencesGroup *group = ADW_PREFERENCES_GROUP (adw_preferences_group_new ());
 
     AdwPreferencesGroup *themes = ADW_PREFERENCES_GROUP (adw_preferences_group_new ());
-    const char *theme_labels[] = { _("Light"), _("Dark"), _("Dark and Light") };
-    const char *theme_values[] = { "light", "dark", "dark-and-light" };
-    GtkCheckButton *first = NULL;
     AdwSwitchRow *blur = ADW_SWITCH_ROW (adw_switch_row_new ());
     AdwSwitchRow *menu_blur = ADW_SWITCH_ROW (adw_switch_row_new ());
     AdwSwitchRow *scroll_animation = ADW_SWITCH_ROW (adw_switch_row_new ());
     AdwSwitchRow *pop_icons = ADW_SWITCH_ROW (adw_switch_row_new ());
 
     adw_dialog_set_title (dialog, _("Interface"));
-    adw_dialog_set_content_width (dialog, 360);
+    adw_dialog_set_content_width (dialog, 460);
     adw_preferences_group_set_title (themes, _("Appearance"));
-    for (guint i = 0; i < G_N_ELEMENTS (theme_labels); i++)
-    {
-        GtkCheckButton *choice = GTK_CHECK_BUTTON (gtk_check_button_new_with_label (theme_labels[i]));
-
-        if (first == NULL)
-        {
-            first = choice;
-        }
-        else
-        {
-            gtk_check_button_set_group (choice, first);
-        }
-        gtk_actionable_set_action_target (GTK_ACTIONABLE (choice), "s", theme_values[i]);
-        gtk_actionable_set_action_name (GTK_ACTIONABLE (choice), "app.vinder-appearance");
-        adw_preferences_group_add (themes, GTK_WIDGET (choice));
-    }
+    adw_preferences_group_add (themes, create_appearance_selector ());
     adw_preferences_row_set_title (ADW_PREFERENCES_ROW (pop_icons), _("Pop the Icons"));
     g_settings_bind (nautilus_preferences, "vinder-pop-icons", pop_icons, "active",
                      G_SETTINGS_BIND_DEFAULT);
@@ -373,6 +697,7 @@ action_interface (GSimpleAction *action,
     adw_preferences_row_set_title (ADW_PREFERENCES_ROW (blur), _("Blur"));
     gtk_actionable_set_action_name (GTK_ACTIONABLE (blur), "app.vinder-blur");
     adw_preferences_group_add (group, GTK_WIDGET (blur));
+    adw_preferences_group_add (group, create_blur_preset_row ());
     adw_preferences_row_set_title (ADW_PREFERENCES_ROW (menu_blur), _("Blur Menus"));
     g_settings_bind (nautilus_preferences, "vinder-menu-blur", menu_blur, "active",
                      G_SETTINGS_BIND_DEFAULT | G_SETTINGS_BIND_NO_SENSITIVITY);
